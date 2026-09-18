@@ -19,17 +19,7 @@ import {
 import { playAnsage, playLaut, playWort, stopAll } from '../audio/speak'
 import { sfxNochmal, sfxSchluepfen, sfxTipp } from '../audio/sfx'
 
-/**
- * Vier Phasen, und die erste ist die wichtigste.
- *
- * Ohne "vorstellung" prüft die App nur ab, was sie nie beigebracht hat -
- * das Kind drückt dann die leuchtende Taste, ohne den Buchstaben zu
- * lernen. Erst zeigen, dann führen, dann prüfen.
- */
-type Phase = 'vorstellung' | 'stellen' | 'jagen' | 'schluepfen'
-
-/** So oft muss er die Taste beim Vorstellen selbst drücken. */
-const ECHOS = 2
+type Phase = 'stellen' | 'jagen' | 'schluepfen'
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -45,53 +35,44 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
   const [getippt, setGetippt] = useState<string[]>([])
   const [gedrueckt, setGedrueckt] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>('stellen')
-  const [echo, setEcho] = useState(0)
+  /** Wird der Buchstabe in dieser Runde erklärt? */
+  const [erklaert, setErklaert] = useState(false)
   const [geschluepft, setGeschluepft] = useState<string | null>(null)
 
   const lauf = useRef(0)
   const blitz = useRef<number | null>(null)
   const wiederholt = useRef(0)
 
-  /* ---------- Schritt 1: Vorstellen ---------- */
-
   /**
-   * Der Drache zeigt den Buchstaben, seinen Laut und sein Wesen.
+   * Die Aufgabe hörbar stellen. Lesen kann er sie nicht.
    *
-   * Bewusst wird nie der BUCHSTABENNAME gesagt - nicht "Em", sondern
-   * "mmmm, wie Maus, mmmm". Buchstabennamen sabotieren das Lautieren.
+   * Ist der Buchstabe neu (oder ging zuletzt oft daneben), hängt der
+   * Drache sein Wesen an: "mmmm - Maus". Einmal, nicht als Zeremonie.
+   * Der Rest der Erklärung steht ohnehin auf dem Schirm - Zeichen,
+   * leuchtende Taste und Schattenriss im Ei.
+   *
+   * Nie wird der BUCHSTABENNAME gesagt, immer nur der Laut: "mmmm",
+   * nicht "Em". Buchstabennamen sabotieren das Lautieren.
    */
-  const vorstellen = useCallback(async (z: string) => {
-    const id = ++lauf.current
-    setPhase('vorstellung')
-    setEcho(0)
-    await pause(400)
-    if (lauf.current !== id) return
-
-    await playLaut(z)
-    if (lauf.current !== id) return
-    await pause(220)
-    if (lauf.current !== id) return
-
-    await playAnsage('wie ' + BUCHSTABEN[z].wort)
-    if (lauf.current !== id) return
-    await pause(220)
-    if (lauf.current !== id) return
-
-    await playLaut(z)
-  }, [])
-
-  /* ---------- Schritt 2 und 3: Jagen ---------- */
-
-  /** Die Aufgabe hörbar stellen. Lesen kann er sie nicht. */
-  const ansagen = useCallback(async (a: Aufgabe) => {
+  const ansagen = useCallback(async (a: Aufgabe, zeigen: boolean) => {
     const id = ++lauf.current
     setPhase('stellen')
     await pause(250)
     if (lauf.current !== id) return
 
-    if (a.art === 'buchstabe') await playLaut(a.ziel[0])
-    else if (a.art === 'silbe') await playAnsage(a.text)
-    else await playWort(a.text)
+    if (a.art === 'buchstabe') {
+      await playLaut(a.ziel[0])
+      if (lauf.current !== id) return
+      if (zeigen) {
+        await pause(200)
+        if (lauf.current !== id) return
+        await playAnsage(BUCHSTABEN[a.ziel[0]].wort)
+      }
+    } else if (a.art === 'silbe') {
+      await playAnsage(a.text)
+    } else {
+      await playWort(a.text)
+    }
 
     if (lauf.current !== id) return
     setPhase('jagen')
@@ -119,15 +100,17 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
       setGeschluepft(null)
       wiederholt.current = 0
 
-      // Neu oder zuletzt oft danebengegriffen? Dann erst erklären.
+      // Neu oder zuletzt oft danebengegriffen? Dann Wesen dazusagen.
       const z = a.art === 'buchstabe' ? a.ziel[0] : null
-      if (z && brauchtVorstellung(stand[z])) void vorstellen(z)
-      else void ansagen(a)
+      const zeigen = Boolean(z && brauchtVorstellung(stand[z]))
+      if (z && zeigen) vorgestellt(z)
+      setErklaert(zeigen)
+      void ansagen(a, zeigen)
     },
     // Absichtlich ohne stand/runden: sonst startet die Runde neu, sobald
     // ein Treffer gezählt wird.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [eingefuehrt, gefangen, ansagen, vorstellen],
+    [eingefuehrt, gefangen, ansagen, vorgestellt],
   )
 
   useEffect(() => {
@@ -196,23 +179,6 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
       if (!aufgabe || phase === 'schluepfen') return
       const ziel = aufgabe.ziel[pos]
 
-      // Beim Vorstellen gibt es nichts zu gewinnen und nichts zu verlieren.
-      if (phase === 'vorstellung') {
-        if (taste !== ziel) {
-          if (BUCHSTABEN[taste]) void playLaut(taste)
-          else sfxTipp()
-          return
-        }
-        void playLaut(ziel)
-        const n = echo + 1
-        setEcho(n)
-        if (n >= ECHOS) {
-          vorgestellt(ziel)
-          void ansagen(aufgabe)
-        }
-        return
-      }
-
       /*
        * Tippt er, während der Drache noch spricht, gilt der Tastendruck
        * trotzdem. Sonst verpufft genau der Treffer, auf den er stolz war.
@@ -250,8 +216,8 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
       if (fehler >= 2) sfxNochmal()
     },
     [
-      aufgabe, phase, pos, fehler, echo, mitHilfe,
-      treffer, daneben, abschluss, ansagen, vorgestellt,
+      aufgabe, phase, pos, fehler, mitHilfe,
+      treffer, daneben, abschluss,
     ],
   )
 
@@ -268,9 +234,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
 
       if (e.key === ' ') {
         e.preventDefault()
-        if (!aufgabe) return
-        if (phase === 'vorstellung' && zielZeichen) void vorstellen(zielZeichen)
-        else void ansagen(aufgabe)
+        if (aufgabe) void ansagen(aufgabe, erklaert)
         return
       }
 
@@ -280,7 +244,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [aufgabe, phase, zielZeichen, ansagen, vorstellen, onEnde, tasteGedrueckt])
+  }, [aufgabe, erklaert, ansagen, onEnde, tasteGedrueckt])
 
   /*
    * Passiert nichts, wird die Aufgabe noch einmal gesagt. Er kann sie
@@ -292,24 +256,21 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
     if (wiederholt.current >= 3) return
     const t = setTimeout(() => {
       wiederholt.current += 1
-      void ansagen(aufgabe)
+      void ansagen(aufgabe, false)
     }, 8000)
     return () => clearTimeout(t)
-  }, [phase, aufgabe, pos, fehler, ansagen])
+  }, [phase, aufgabe, pos, fehler, erklaert, ansagen])
 
   /* ---------- Anzeige ---------- */
 
-  const verraten = phase === 'vorstellung' || mitHilfe
-  const zeigeZiel = phase === 'vorstellung' || mitHilfe
+  const verraten = mitHilfe
+  const zeigeZiel = mitHilfe
 
   const laune: Laune =
-    phase === 'vorstellung' ? 'lauten'
-    : phase === 'stellen' ? 'lauten'
+    phase === 'stellen' ? 'lauten'
     : phase === 'schluepfen' ? 'freude'
     : fehler >= 2 ? 'nochmal'
     : 'warten'
-
-  const wesen = zielZeichen ? BUCHSTABEN[zielZeichen] : null
 
   return (
     <div className="flex h-full flex-col">
@@ -335,58 +296,6 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
       <main className="flex flex-1 items-center justify-center gap-[3vw] px-6">
         <Drache laune={laune} />
 
-        {phase === 'vorstellung' && wesen ? (
-          /* Schritt 1: Der Drache erklärt den Buchstaben. */
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center gap-4"
-          >
-            <div className="flex items-center gap-[3vw]">
-              <motion.span
-                className="font-display font-extrabold text-glut glut-stark"
-                style={{ fontSize: 'clamp(6rem, 16vw, 14rem)', lineHeight: 1 }}
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-              >
-                {wesen.zeichen}
-              </motion.span>
-
-              <motion.span
-                style={{ fontSize: 'clamp(4rem, 11vw, 9rem)' }}
-                animate={{ y: [0, -14, 0], rotate: [0, -5, 5, 0] }}
-                transition={{
-                  duration: echo > 0 ? 0.6 : 2.4,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-                aria-hidden
-              >
-                {wesen.emoji}
-              </motion.span>
-            </div>
-
-            {/* Der Name ist für Erwachsene, er hört ihn ohnehin. */}
-            <p className="font-display text-2xl font-bold text-white/60">
-              {wesen.wort}
-            </p>
-
-            {/* Wie oft er die Taste noch drücken soll. */}
-            <div className="flex gap-2">
-              {Array.from({ length: ECHOS }).map((_, i) => (
-                <span
-                  key={i}
-                  className={[
-                    'h-3 w-10 rounded-full transition-colors',
-                    i < echo ? 'bg-glut' : 'bg-white/15',
-                  ].join(' ')}
-                  aria-hidden
-                />
-              ))}
-            </div>
-          </motion.div>
-        ) : (
-          /* Schritt 2 und 3: Das Ei mit der Aufgabe. */
           <div className="flex flex-col items-center gap-4">
             {/* Bei Wörtern ist das Bild die Bedeutung - kein Ratespiel. */}
             {aufgabe?.art === 'wort' && phase !== 'schluepfen' && (
@@ -460,7 +369,6 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
               })}
             </div>
           </div>
-        )}
       </main>
 
       <Welt gefangen={gefangen} />
@@ -471,11 +379,9 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
           sehen, was erwartet wird - und dass es auch ohne Ton geht.
         */}
         <p className="text-sm text-white/35">
-          {phase === 'vorstellung'
-            ? `Neuer Buchstabe. Noch ${ECHOS - echo}× die leuchtende Taste drücken.`
-            : mitHilfe
-              ? 'Üben: die leuchtende Taste drücken — auf der Tastatur oder hier klicken. Leertaste wiederholt.'
-              : 'Ohne Hilfe: nur nach dem Laut suchen. Leertaste wiederholt den Laut.'}
+          {mitHilfe
+            ? 'Üben: die leuchtende Taste drücken — auf der Tastatur oder hier klicken. Leertaste wiederholt.'
+            : 'Ohne Hilfe: nur nach dem Laut suchen. Leertaste wiederholt den Laut.'}
         </p>
         <Tastatur
           gedrueckt={gedrueckt}
