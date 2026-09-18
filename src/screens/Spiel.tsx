@@ -6,6 +6,7 @@ import { BildKarte } from '../components/BildKarte'
 import { Sterne } from '../components/Sterne'
 import { Taste } from '../components/Taste'
 import { playAnsage, playLaut, playWort, stopAll } from '../audio/speak'
+import { sfxNochmal, sfxPuff, sfxRichtig } from '../audio/sfx'
 import { difficulty, wordsFor, type Word } from '../data/words'
 import { useProgress } from '../store/progress'
 
@@ -118,6 +119,7 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
     const id = ++lauf.current
     setPhase('blenden')
     setAktiv(-1)
+    sfxPuff()
     await pause(450)
     if (lauf.current !== id) return
     await playWort(wort.text)
@@ -128,23 +130,25 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
   }, [wort])
 
   /**
-   * Er kann nicht lesen - also muss jede Aufforderung gesprochen kommen.
-   * Passiert nichts, wird nachgehakt; passiert immer noch nichts, macht der
-   * Drache selbst weiter. Ein Kind darf nie in einer Sackgasse sitzen.
+   * Gesprochen wird nur, wenn er wirklich hängt.
+   *
+   * Eine Ansage in jeder Runde klingt nach zwei Minuten wie Gemecker und
+   * übertönt das, worauf es ankommt: die Laute. Darum kommt erst nach fünf
+   * Sekunden ohne Reaktion ein Hinweis - und wenn dann immer noch nichts
+   * passiert, macht der Drache von allein weiter, damit er nie festsitzt.
    */
   useEffect(() => {
     if (phase !== 'bereit') return
     const t = [
-      setTimeout(() => void playAnsage('Jetzt alle zusammen!'), 250),
-      setTimeout(() => void playAnsage('Drück die große Taste unten.'), 6500),
-      setTimeout(() => void zusammenschleifen(), 13000),
+      setTimeout(() => void playAnsage('Drück die große Taste!'), 5000),
+      setTimeout(() => void zusammenschleifen(), 12000),
     ]
     return () => t.forEach(clearTimeout)
   }, [phase, zusammenschleifen])
 
   useEffect(() => {
     if (phase !== 'waehlen') return
-    const t = setTimeout(() => void playAnsage('Welches Bild ist es?'), 6000)
+    const t = setTimeout(() => void playAnsage('Welches Bild?'), 7000)
     return () => clearTimeout(t)
   }, [phase])
 
@@ -157,9 +161,9 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
         merken(wort.text, true)
         stern()
         setPhase('richtig')
-        await playAnsage('Ja! ' + wort.text)
-        if (lauf.current !== id) return
-        await pause(900)
+        // Ein Klang statt "Richtig!" - er hat das Wort gerade erst gehört.
+        sfxRichtig()
+        await pause(1200)
         if (lauf.current !== id) return
         neueRunde(wort.text)
         return
@@ -169,7 +173,8 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
       merken(wort.text, false)
       setFalschKarte(gewaehlt.text)
       setPhase('nochmal')
-      await playAnsage('Fast. Hör nochmal.')
+      sfxNochmal()
+      await pause(500)
       if (lauf.current !== id) return
       await playWort(wort.text)
       if (lauf.current !== id) return

@@ -14,7 +14,10 @@ type State = {
   /** Buchstaben, die in der Klasse schon dran waren. */
   buchstaben: string[]
   statistik: Record<string, WordStat>
+  /** Name der Sprachausgabe-Stimme, null = automatisch die beste. */
+  stimme: string | null
   stern: () => void
+  setStimme: (name: string | null) => void
   setBuchstaben: (b: string[]) => void
   merken: (wort: string, richtig: boolean) => void
   zuruecksetzen: () => void
@@ -26,8 +29,11 @@ export const useProgress = create<State>()(
       sterne: 0,
       buchstaben: DEFAULT_LETTERS,
       statistik: {},
+      stimme: null,
 
       stern: () => set((s) => ({ sterne: s.sterne + 1 })),
+
+      setStimme: (stimme) => set({ stimme }),
 
       setBuchstaben: (buchstaben) => set({ buchstaben }),
 

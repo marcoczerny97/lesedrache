@@ -27,17 +27,46 @@ export async function loadManifest(): Promise<void> {
   }
 }
 
+/** Vom Benutzer im Eltern-Bereich gewählte Stimme. */
+let wunschStimme: string | null = null
+
+export function setStimme(name: string | null): void {
+  wunschStimme = name
+  cachedVoice = null
+}
+
+/** Alle deutschen Stimmen, beste zuerst. */
+export function deutscheStimmen(): SpeechSynthesisVoice[] {
+  const de = speechSynthesis
+    .getVoices()
+    .filter((v) => v.lang.toLowerCase().startsWith('de'))
+
+  /*
+   * Die alten kompakten macOS-Stimmen ("Anna") klingen blechern. Netz-
+   * stimmen und die neueren Systemstimmen sind deutlich besser, darum
+   * werden die nach oben sortiert.
+   */
+  const gut = ['Helena', 'Martin', 'Sandy', 'Shelley', 'Flo', 'Reed', 'Eddy']
+
+  const punkte = (v: SpeechSynthesisVoice) => {
+    let p = 0
+    if (!v.localService) p += 100
+    if (/premium|enhanced/i.test(v.name)) p += 60
+    const i = gut.findIndex((n) => v.name.includes(n))
+    if (i >= 0) p += 40 - i
+    if (/^Anna/.test(v.name)) p -= 60
+    return p
+  }
+
+  return [...de].sort((a, b) => punkte(b) - punkte(a))
+}
+
 function germanVoice(): SpeechSynthesisVoice | null {
   if (cachedVoice) return cachedVoice
-  const voices = speechSynthesis.getVoices()
-  if (!voices.length) return null
-  const de = voices.filter((v) => v.lang.toLowerCase().startsWith('de'))
-  // Bevorzugt eine freundliche Stimme, sonst irgendeine deutsche.
-  const preferred = ['Anna', 'Petra', 'Google Deutsch', 'Markus', 'Yannick']
+  const de = deutscheStimmen()
+  if (!de.length) return null
   cachedVoice =
-    preferred.map((n) => de.find((v) => v.name.includes(n))).find(Boolean) ??
-    de[0] ??
-    null
+    (wunschStimme && de.find((v) => v.name === wunschStimme)) || de[0]
   return cachedVoice
 }
 

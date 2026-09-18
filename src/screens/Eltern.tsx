@@ -1,6 +1,7 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ALL_LETTERS, wordsFor } from '../data/words'
 import { useProgress } from '../store/progress'
+import { deutscheStimmen, playAnsage, setStimme } from '../audio/speak'
 
 /**
  * Eltern-Bereich.
@@ -11,8 +12,20 @@ import { useProgress } from '../store/progress'
  * unbekanntes Zeichen und damit nie in ein Erfolgserlebnis-Loch.
  */
 export function Eltern({ onZurueck }: { onZurueck: () => void }) {
-  const { buchstaben, setBuchstaben, statistik, sterne, zuruecksetzen } =
-    useProgress()
+  const {
+    buchstaben, setBuchstaben, statistik, sterne, zuruecksetzen,
+    stimme, setStimme: merkeStimme,
+  } = useProgress()
+
+  const [stimmen, setStimmen] = useState(() => deutscheStimmen())
+
+  // Chrome liefert die Stimmen erst asynchron nach.
+  useEffect(() => {
+    const auffrischen = () => setStimmen(deutscheStimmen())
+    speechSynthesis.addEventListener('voiceschanged', auffrischen)
+    return () =>
+      speechSynthesis.removeEventListener('voiceschanged', auffrischen)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -77,6 +90,45 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
             {moeglich.length > 0 && (
               <>: {moeglich.map((w) => w.text).join(', ')}</>
             )}
+          </p>
+        </section>
+
+        <section className="mb-10">
+          <h3 className="mb-2 text-xl font-bold">Stimme</h3>
+          <p className="mb-4 text-white/60">
+            Die Browser-Stimmen klingen unterschiedlich gut. Probier durch,
+            welche auf diesem Rechner am wenigsten blechern ist.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={stimme ?? ''}
+              onChange={(e) => {
+                const n = e.target.value || null
+                merkeStimme(n)
+                setStimme(n)
+              }}
+              className="rounded-xl bg-white/10 px-4 py-3 text-white
+                         [&>option]:bg-nacht-2"
+            >
+              <option value="">Automatisch (beste verfügbare)</option>
+              {stimmen.map((v) => (
+                <option key={v.name} value={v.name}>
+                  {v.name}
+                  {v.localService ? '' : ' · Netz'}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => void playAnsage('Mmmm. Aaaa. Uuuu. Maus.')}
+              className="rounded-xl bg-white/10 px-5 py-3 transition hover:bg-white/20"
+            >
+              Probe hören
+            </button>
+          </div>
+          <p className="mt-3 text-sm text-white/40">
+            Auf dem Mac lassen sich unter Systemeinstellungen &rsaquo;
+            Bedienungshilfen &rsaquo; Gesprochene Inhalte bessere deutsche
+            Stimmen nachladen.
           </p>
         </section>
 
