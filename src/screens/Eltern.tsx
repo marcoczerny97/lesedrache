@@ -1,31 +1,23 @@
 import { useEffect, useState } from 'react'
-import { ALL_LETTERS, wordsFor } from '../data/words'
-import { useProgress } from '../store/progress'
+import { BUCHSTABEN, REIHENFOLGE } from '../data/buchstaben'
+import { istSicher, SICHER_AB, useFortschritt } from '../store/fortschritt'
 import { deutscheStimmen, playAnsage, setStimme } from '../audio/speak'
 
 /**
  * Eltern-Bereich.
  *
- * Der eigentliche Zweck: einstellen, welche Buchstaben in der Klasse
- * schon dran waren. Die App zieht dann nur noch Wörter, die er mit
- * genau diesen Buchstaben auch knacken kann - er läuft nie in ein
- * unbekanntes Zeichen und damit nie in ein Erfolgserlebnis-Loch.
+ * Hier wird bewusst NICHTS eingestellt, was den Lernweg betrifft. Welche
+ * Buchstaben dran sind, entscheidet die App aus dem, was sie beobachtet
+ * hat - Eltern müssen nicht wissen, wo ihr Kind gerade steht. Diese Seite
+ * zeigt nur, was passiert ist.
  */
 export function Eltern({ onZurueck }: { onZurueck: () => void }) {
   const {
-    buchstaben, setBuchstaben, statistik, sterne, zuruecksetzen,
-    stimme, setStimme: merkeStimme,
-  } = useProgress()
+    stand, eingefuehrt, gefangen, runden,
+    stimme, setStimme: merkeStimme, zuruecksetzen,
+  } = useFortschritt()
 
   const [stimmen, setStimmen] = useState(() => deutscheStimmen())
-
-  // Chrome liefert die Stimmen erst asynchron nach.
-  useEffect(() => {
-    const auffrischen = () => setStimmen(deutscheStimmen())
-    speechSynthesis.addEventListener('voiceschanged', auffrischen)
-    return () =>
-      speechSynthesis.removeEventListener('voiceschanged', auffrischen)
-  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -35,14 +27,13 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onZurueck])
 
-  const toggle = (l: string) =>
-    setBuchstaben(
-      buchstaben.includes(l)
-        ? buchstaben.filter((x) => x !== l)
-        : [...buchstaben, l],
-    )
-
-  const moeglich = wordsFor(buchstaben)
+  // Chrome liefert die Stimmen erst asynchron nach.
+  useEffect(() => {
+    const auffrischen = () => setStimmen(deutscheStimmen())
+    speechSynthesis.addEventListener('voiceschanged', auffrischen)
+    return () =>
+      speechSynthesis.removeEventListener('voiceschanged', auffrischen)
+  }, [])
 
   return (
     <div className="h-full overflow-y-auto p-8">
@@ -58,39 +49,51 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
         </header>
 
         <section className="mb-10">
-          <h3 className="mb-2 text-xl font-bold">
-            Welche Buchstaben hatte er schon?
-          </h3>
-          <p className="mb-4 text-white/60">
-            Frag am besten kurz die Lehrerin nach der Reihenfolge in der Fibel.
-            Abgewählte Buchstaben tauchen in keinem Wort mehr auf.
+          <h3 className="mb-2 text-xl font-bold">Wo steht er?</h3>
+          <p className="mb-5 text-white/60">
+            {gefangen.length} von {REIHENFOLGE.length} Wesen gefangen,{' '}
+            {runden} Runden gespielt. Ein Buchstabe gilt als sicher, wenn er
+            ihn {SICHER_AB}-mal hintereinander auf Anhieb gefunden hat. Erst
+            dann führt die App den nächsten ein.
           </p>
-          <div className="flex flex-wrap gap-3">
-            {ALL_LETTERS.map((l) => {
-              const an = buchstaben.includes(l)
+
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {REIHENFOLGE.map((z) => {
+              const s = stand[z]
+              const dran = eingefuehrt.includes(z)
+              const fertig = istSicher(s)
               return (
-                <button
-                  key={l}
-                  onClick={() => toggle(l)}
-                  aria-pressed={an}
+                <div
+                  key={z}
                   className={[
-                    'font-display h-14 w-14 rounded-2xl text-2xl font-extrabold transition',
-                    an
-                      ? 'bg-glut text-nacht'
-                      : 'bg-white/10 text-white/40 hover:bg-white/20',
+                    'flex items-center gap-3 rounded-xl px-3 py-2',
+                    fertig ? 'bg-gruen/15'
+                    : dran ? 'bg-white/10'
+                    : 'bg-white/[0.03]',
                   ].join(' ')}
                 >
-                  {l}
-                </button>
+                  <span
+                    className={[
+                      'font-display text-2xl font-extrabold',
+                      fertig ? 'text-gruen'
+                      : dran ? 'text-glut'
+                      : 'text-white/20',
+                    ].join(' ')}
+                  >
+                    {z}
+                  </span>
+                  <span className={dran ? 'text-xl' : 'text-xl opacity-20'}>
+                    {BUCHSTABEN[z].emoji}
+                  </span>
+                  <span className="ml-auto text-sm text-white/45">
+                    {!dran ? 'später'
+                      : fertig ? 'sitzt'
+                      : `${s?.serie ?? 0}/${SICHER_AB}`}
+                  </span>
+                </div>
               )
             })}
           </div>
-          <p className="mt-4 text-white/60">
-            {moeglich.length} von 20 Wörtern sind damit spielbar
-            {moeglich.length > 0 && (
-              <>: {moeglich.map((w) => w.text).join(', ')}</>
-            )}
-          </p>
         </section>
 
         <section className="mb-10">
@@ -119,44 +122,17 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
               ))}
             </select>
             <button
-              onClick={() => void playAnsage('Mmmm. Aaaa. Uuuu. Maus.')}
+              onClick={() => void playAnsage('Mmmm. Aaaa. Maus.')}
               className="rounded-xl bg-white/10 px-5 py-3 transition hover:bg-white/20"
             >
               Probe hören
             </button>
           </div>
           <p className="mt-3 text-sm text-white/40">
-            Auf dem Mac lassen sich unter Systemeinstellungen &rsaquo;
-            Bedienungshilfen &rsaquo; Gesprochene Inhalte bessere deutsche
-            Stimmen nachladen.
+            Einzelne Laute kann keine Browser-Stimme sauber - besonders bei
+            B, D, G, K, P und T hängt sie ein „e“ an. Das löst erst eine
+            echte Aufnahme.
           </p>
-        </section>
-
-        <section className="mb-10">
-          <h3 className="mb-4 text-xl font-bold">Wie läuft es?</h3>
-          <p className="mb-4 text-white/60">{sterne} Sterne gesammelt</p>
-          {Object.keys(statistik).length === 0 ? (
-            <p className="text-white/40">Noch nichts gespielt.</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {Object.entries(statistik)
-                .sort((a, b) => b[1].falsch - a[1].falsch)
-                .map(([wort, s]) => (
-                  <div
-                    key={wort}
-                    className="flex items-center justify-between rounded-xl
-                               bg-white/5 px-4 py-2"
-                  >
-                    <span className="font-display font-bold">{wort}</span>
-                    <span className="text-sm">
-                      <span className="text-gruen">{s.richtig}</span>
-                      <span className="text-white/30"> / </span>
-                      <span className="text-koralle">{s.falsch}</span>
-                    </span>
-                  </div>
-                ))}
-            </div>
-          )}
         </section>
 
         <section className="border-t border-white/10 pt-6">

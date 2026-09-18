@@ -1,23 +1,21 @@
-import { lettersOf, type Grapheme } from './phonemes'
+import type { Grapheme } from './phonemes'
 
 export type Word = {
   /** Das Wort, wie es geschrieben wird. */
   text: string
   /** Die Lautfolge. MAUS = M-AU-S, nicht M-A-U-S. */
   graphemes: Grapheme[]
-  /** Platzhalter, bis die Higgsfield-Bilder da sind. */
+  /** Platzhalter, bis die generierten Bilder da sind. */
   emoji: string
-  /** Bilddatei, sobald generiert. */
   bild?: string
 }
 
 /**
- * Wortliste v1.
+ * Wortliste für die Wortstufe.
  *
- * Bewusst nur Wörter aus den Buchstaben, die in deutschen Fibeln
- * zuerst drankommen: A E I O U L M N R S T.
- * Kein ST/SP am Wortanfang - das spricht man "scht"/"schp" und
- * ist für den Anfang eine fiese Ausnahme.
+ * Nur Wörter aus den Buchstaben, die in deutschen Fibeln zuerst
+ * drankommen. Kein ST/SP am Wortanfang - das spricht man "scht"/"schp"
+ * und ist für den Anfang eine fiese Ausnahme.
  */
 export const WORDS: Word[] = [
   { text: 'EIS',    graphemes: ['EI', 'S'],                emoji: '🍦' },
@@ -42,27 +40,13 @@ export const WORDS: Word[] = [
   { text: 'ROSINE', graphemes: ['R', 'O', 'S', 'I', 'N', 'E'], emoji: '🍇' },
 ]
 
-/** Alle Buchstaben, die in der Wortliste vorkommen. */
-export const ALL_LETTERS = [...new Set(
-  WORDS.flatMap((w) => w.graphemes.flatMap(lettersOf)),
-)].sort()
-
 /**
- * Voreinstellung: alle Buchstaben der Wortliste sind frei.
- * Im Eltern-Bereich hakt man ab, was in der Klasse noch NICHT dran war -
- * dann tauchen nur noch Wörter auf, die er wirklich knacken kann.
+ * Bildet jeder Laut genau eine Taste ab?
+ *
+ * MAUS hat mit AU einen Laut auf zwei Tasten. Solange er Laute in Tasten
+ * übersetzt, ist das eine Stolperfalle - solche Wörter bleiben draußen,
+ * bis er weiter ist.
  */
-export const DEFAULT_LETTERS = ALL_LETTERS
-
-/** Nur Wörter, die das Kind mit seinen Buchstaben auch knacken kann. */
-export function wordsFor(known: string[]): Word[] {
-  const set = new Set(known)
-  return WORDS.filter((w) =>
-    w.graphemes.flatMap(lettersOf).every((l) => set.has(l)),
-  )
-}
-
-/** Wortlänge in Lauten - damit wir leicht nach schwer sortieren. */
-export function difficulty(w: Word): number {
-  return w.graphemes.length
+export function einsZuEins(w: Word): boolean {
+  return w.graphemes.every((g) => g.length === 1)
 }

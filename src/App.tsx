@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Start } from './screens/Start'
-import { Spiel } from './screens/Spiel'
+import { Jagd } from './screens/Jagd'
 import { Eltern } from './screens/Eltern'
 import { setStimme } from './audio/speak'
-import { useProgress } from './store/progress'
+import { useFortschritt } from './store/fortschritt'
 
-type Screen = 'start' | 'spiel' | 'eltern'
+type Screen = 'start' | 'jagd' | 'eltern'
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('start')
-  const stimme = useProgress((s) => s.stimme)
+  const stimme = useFortschritt((s) => s.stimme)
 
   useEffect(() => setStimme(stimme), [stimme])
 
@@ -17,11 +17,11 @@ export default function App() {
     <div className="h-full">
       {screen === 'start' && (
         <Start
-          onSpielen={() => setScreen('spiel')}
+          onSpielen={() => setScreen('jagd')}
           onEltern={() => setScreen('eltern')}
         />
       )}
-      {screen === 'spiel' && <Spiel onEnde={() => setScreen('start')} />}
+      {screen === 'jagd' && <Jagd onEnde={() => setScreen('start')} />}
       {screen === 'eltern' && <Eltern onZurueck={() => setScreen('start')} />}
     </div>
   )

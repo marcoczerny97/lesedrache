@@ -67,6 +67,17 @@ export function sfxPuff(): void {
   osc.stop(t + 0.45)
 }
 
+/** Daneben getippt: ein kurzer neutraler Tick. Keine Strafe. */
+export function sfxTipp(): void {
+  ton(220, 0, 0.09, 0.07, 'triangle')
+}
+
+/** Ein Wesen schlüpft. */
+export function sfxSchluepfen(): void {
+  ;[659.25, 880, 1174.66].forEach((f, i) => ton(f, i * 0.07, 0.4, 0.13, 'sine'))
+  ton(1567.98, 0.22, 0.5, 0.06, 'triangle')
+}
+
 /** Einmal beim ersten Tastendruck aufrufen - Browser brauchen die Geste. */
 export function sfxAufwecken(): void {
   ac()

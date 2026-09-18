@@ -126,6 +126,3 @@ export async function playAnsage(text: string): Promise<void> {
   stopAll()
   return say(text, 0.9)
 }
-
-export const hasRecordings = () =>
-  manifest.laute.length > 0 || manifest.woerter.length > 0

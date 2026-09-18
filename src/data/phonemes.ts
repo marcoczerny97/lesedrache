@@ -7,14 +7,6 @@
  * verwirrt Kinder beim Lautieren.
  */
 
-/** Alle Grapheme, die v1 kennt. */
-export const GRAPHEMES = [
-  'A', 'E', 'I', 'O', 'U',
-  'AU', 'EI', 'EU',
-  'L', 'M', 'N', 'R', 'S', 'T',
-  'SS', 'NN', 'MM', 'LL', 'TT', 'RR',
-] as const
-
 export type Grapheme = string
 
 /**
@@ -23,14 +15,6 @@ export type Grapheme = string
  */
 const DOUBLES: Record<string, string> = {
   SS: 'S', NN: 'N', MM: 'M', LL: 'L', TT: 'T', RR: 'R',
-}
-
-/**
- * Welche Basis-Buchstaben stecken in einem Graphem?
- * Damit filtern wir Wörter nach "diese Buchstaben hatten wir schon".
- */
-export function lettersOf(grapheme: Grapheme): string[] {
-  return grapheme.split('')
 }
 
 /**
@@ -47,8 +31,12 @@ export function lettersOf(grapheme: Grapheme): string[] {
 export const LAUT_HINT: Record<string, string> = {
   A: 'ahh', E: 'ähh', I: 'ihh', O: 'ohh', U: 'uhh',
   AU: 'auuu', EI: 'eiii', EU: 'oiii',
-  L: 'llll', M: 'mmmm', N: 'nnnn', R: 'rrrr', S: 'ssss',
-  T: 't',
+  // Dauerlaute lassen sich ziehen und klingen darum am saubersten.
+  F: 'fff', L: 'llll', M: 'mmmm', N: 'nnnn', R: 'rrrr', S: 'ssss',
+  W: 'wwww', H: 'hhh', Z: 'tss',
+  // Verschlusslaute gehen nur kurz. Hier ist die Sprachausgabe am
+  // schwächsten - sie hängt gern ein "e" an. Das lösen erst Aufnahmen.
+  B: 'b', D: 'd', G: 'g', K: 'k', P: 'p', T: 't',
 }
 
 export function lautHint(grapheme: Grapheme): string {
