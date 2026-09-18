@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { BUCHSTABEN, REIHENFOLGE } from '../data/buchstaben'
-import { istSicher, SICHER_AB, useFortschritt } from '../store/fortschritt'
+import {
+  brauchtHilfe,
+  GEFUEHRT_BIS,
+  istSicher,
+  SICHER_AB,
+  useFortschritt,
+} from '../store/fortschritt'
 import { deutscheStimmen, playAnsage, setStimme } from '../audio/speak'
 
 /**
@@ -52,9 +58,17 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
           <h3 className="mb-2 text-xl font-bold">Wo steht er?</h3>
           <p className="mb-5 text-white/60">
             {gefangen.length} von {REIHENFOLGE.length} Wesen gefangen,{' '}
-            {runden} Runden gespielt. Ein Buchstabe gilt als sicher, wenn er
-            ihn {SICHER_AB}-mal hintereinander auf Anhieb gefunden hat. Erst
-            dann führt die App den nächsten ein.
+            {runden} Runden gespielt.
+          </p>
+          <p className="mb-5 text-white/60">
+            Jeder Buchstabe geht durch drei Schritte:{' '}
+            <span className="text-white/80">zeigen</span> (der Drache erklärt
+            Laut und Wesen), <span className="text-white/80">üben</span> (die
+            Taste leuchtet, {GEFUEHRT_BIS}×) und{' '}
+            <span className="text-white/80">prüfen</span> (ohne Hilfe). Nur
+            Treffer ohne Hilfe zählen — {SICHER_AB} in Folge, dann führt die
+            App den nächsten Buchstaben ein. Greift er dreimal daneben,
+            erklärt der Drache den Buchstaben neu.
           </p>
 
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
@@ -88,7 +102,9 @@ export function Eltern({ onZurueck }: { onZurueck: () => void }) {
                   <span className="ml-auto text-sm text-white/45">
                     {!dran ? 'später'
                       : fertig ? 'sitzt'
-                      : `${s?.serie ?? 0}/${SICHER_AB}`}
+                      : !s?.vorgestellt ? 'wird gezeigt'
+                      : brauchtHilfe(s) ? `übt ${s.gefuehrt}/${GEFUEHRT_BIS}`
+                      : `prüft ${s.serie}/${SICHER_AB}`}
                   </span>
                 </div>
               )
