@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 
-export type Laune = 'ruhe' | 'lauten' | 'pusten' | 'freude' | 'nochmal'
+export type Laune = 'ruhe' | 'lauten' | 'warten' | 'pusten' | 'freude' | 'nochmal'
 
 /**
  * Der Lesedrache.
@@ -13,14 +13,16 @@ export function Drache({ laune }: { laune: Laune }) {
   const animation = {
     ruhe: { scale: [1, 1.04, 1], rotate: [0, -2, 0], y: [0, -6, 0] },
     lauten: { scale: [1, 1.06, 1], rotate: [0, 3, 0], y: [0, -4, 0] },
+    // Holt Luft: macht sichtbar, dass jetzt das Kind dran ist.
+    warten: { scale: [1, 1.12, 1], rotate: [0, -3, 0], y: [0, -2, 0] },
     pusten: { scale: [1, 1.25, 1.05], rotate: [0, -8, 0], x: [0, 14, 0] },
     freude: { scale: [1, 1.2, 1], rotate: [0, -12, 12, 0], y: [0, -28, 0] },
     nochmal: { scale: 1, rotate: [0, -4, 4, 0], y: 0 },
   }[laune]
 
-  const dauer = { ruhe: 3.2, lauten: 1.1, pusten: 0.7, freude: 0.8, nochmal: 0.5 }[
-    laune
-  ]
+  const dauer = {
+    ruhe: 3.2, lauten: 1.1, warten: 1.4, pusten: 0.7, freude: 0.8, nochmal: 0.5,
+  }[laune]
 
   return (
     <div className="relative flex shrink-0 items-center justify-center">
@@ -29,8 +31,12 @@ export function Drache({ laune }: { laune: Laune }) {
         aria-hidden
         className="absolute rounded-full bg-glut blur-3xl"
         animate={{
-          opacity: laune === 'pusten' ? 0.55 : laune === 'freude' ? 0.45 : 0.22,
-          scale: laune === 'pusten' ? 1.35 : 1,
+          opacity:
+            laune === 'pusten' ? 0.55
+            : laune === 'freude' ? 0.45
+            : laune === 'warten' ? 0.38
+            : 0.22,
+          scale: laune === 'pusten' ? 1.35 : laune === 'warten' ? 1.15 : 1,
         }}
         transition={{ duration: 0.4 }}
         style={{ width: '13rem', height: '13rem' }}
@@ -40,7 +46,10 @@ export function Drache({ laune }: { laune: Laune }) {
         animate={animation}
         transition={{
           duration: dauer,
-          repeat: laune === 'ruhe' || laune === 'lauten' ? Infinity : 0,
+          repeat:
+            laune === 'ruhe' || laune === 'lauten' || laune === 'warten'
+              ? Infinity
+              : 0,
           ease: 'easeInOut',
         }}
       >

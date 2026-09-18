@@ -13,7 +13,6 @@ type Phase = 'lauten' | 'bereit' | 'blenden' | 'waehlen' | 'richtig' | 'nochmal'
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-/** Zufällig mischen. */
 function mischen<T>(arr: T[]): T[] {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {
@@ -62,6 +61,7 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
 
   const laune: Laune =
     phase === 'lauten' ? 'lauten'
+    : phase === 'bereit' ? 'warten'
     : phase === 'blenden' ? 'pusten'
     : phase === 'richtig' ? 'freude'
     : phase === 'nochmal' ? 'nochmal'
@@ -87,7 +87,6 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
     setPhase('bereit')
   }, [])
 
-  /** Neue Runde: Wort ziehen, zwei Ablenker dazu, Laute vorsprechen. */
   const neueRunde = useCallback(
     (letztes?: string) => {
       if (!pool.length) return
@@ -127,6 +126,27 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
     if (lauf.current !== id) return
     setPhase('waehlen')
   }, [wort])
+
+  /**
+   * Er kann nicht lesen - also muss jede Aufforderung gesprochen kommen.
+   * Passiert nichts, wird nachgehakt; passiert immer noch nichts, macht der
+   * Drache selbst weiter. Ein Kind darf nie in einer Sackgasse sitzen.
+   */
+  useEffect(() => {
+    if (phase !== 'bereit') return
+    const t = [
+      setTimeout(() => void playAnsage('Jetzt alle zusammen!'), 250),
+      setTimeout(() => void playAnsage('Drück die große Taste unten.'), 6500),
+      setTimeout(() => void zusammenschleifen(), 13000),
+    ]
+    return () => t.forEach(clearTimeout)
+  }, [phase, zusammenschleifen])
+
+  useEffect(() => {
+    if (phase !== 'waehlen') return
+    const t = setTimeout(() => void playAnsage('Welches Bild ist es?'), 6000)
+    return () => clearTimeout(t)
+  }, [phase])
 
   const antwort = useCallback(
     async (gewaehlt: Word) => {
@@ -172,17 +192,17 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
         return
       }
 
-      if (k === ' ') {
+      /*
+       * In der Warte-Phase gibt es nur EINE sinnvolle Aktion. Darum lösen
+       * beide großen Tasten dasselbe aus - ein Kind soll hier nicht zwischen
+       * zwei Tasten unterscheiden müssen.
+       */
+      if (k === ' ' || k === 'Enter') {
         e.preventDefault()
         if (!wort) return
-        if (phase === 'bereit' || phase === 'lauten') void lautenSequenz(wort)
-        else if (phase === 'waehlen' || phase === 'nochmal') void playWort(wort.text)
-        return
-      }
-
-      if (k === 'Enter') {
-        e.preventDefault()
         if (phase === 'bereit') void zusammenschleifen()
+        else if (phase === 'lauten') void lautenSequenz(wort)
+        else if (phase === 'waehlen' || phase === 'nochmal') void playWort(wort.text)
         return
       }
 
@@ -228,7 +248,8 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
     )
   }
 
-  const verschmolzen = phase === 'blenden' || phase === 'waehlen' ||
+  const verschmolzen =
+    phase === 'blenden' || phase === 'waehlen' ||
     phase === 'richtig' || phase === 'nochmal'
 
   return (
@@ -245,7 +266,7 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
         <Sterne anzahl={sterne} />
       </header>
 
-      <main className="flex flex-1 flex-col items-center justify-center gap-8">
+      <main className="flex flex-1 flex-col items-center justify-center gap-4">
         <div className="flex items-center justify-center gap-6">
           <Drache laune={laune} />
 
@@ -273,7 +294,24 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
           </div>
         </div>
 
-        {/* Auswahl der Bilder */}
+        {/* Verbindet die Buchstaben mit der Taste, die er drücken soll. */}
+        <AnimatePresence>
+          {phase === 'bereit' && (
+            <motion.div
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1, y: [0, 12, 0] }}
+              exit={{ opacity: 0 }}
+              transition={{
+                y: { duration: 1.1, repeat: Infinity, ease: 'easeInOut' },
+              }}
+              className="text-4xl text-glut/70"
+            >
+              ▼
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <AnimatePresence>
           {(phase === 'waehlen' || phase === 'richtig' || phase === 'nochmal') && (
             <motion.div
@@ -300,32 +338,62 @@ export function Spiel({ onEnde }: { onEnde: () => void }) {
         </AnimatePresence>
       </main>
 
-      {/* Tastenhinweise - Symbole statt Text, er kann nicht lesen. */}
-      <footer className="flex items-center justify-center gap-5">
-        <Taste breit pulsiert={phase === 'bereit'} label="Leertaste: nochmal hören">
-          <span aria-hidden>🔊</span>
-          <span className="text-sm font-bold tracking-widest opacity-70">
-            ▭▭▭▭
-          </span>
-        </Taste>
+      {/*
+        Immer nur EIN leuchtendes Element. Was gerade dran ist, ist hell;
+        alles andere tritt zurück. Symbole statt Text - er kann nicht lesen.
+      */}
+      <footer className="flex h-28 items-center justify-center gap-4">
+        {phase === 'bereit' && wort && (
+          <>
+            <button
+              onClick={() => void lautenSequenz(wort)}
+              aria-label="Laute noch einmal hören"
+              className="flex h-14 w-16 items-center justify-center rounded-xl
+                         border-b-4 border-white/15 bg-white/5 text-2xl
+                         opacity-40 transition hover:opacity-80"
+            >
+              🔊
+            </button>
 
-        {phase === 'bereit' && (
-          <Taste breit pulsiert label="Enter: Laute zusammenziehen">
-            <span aria-hidden className="text-glut-hell">
-              ⏎
-            </span>
-            <span aria-hidden>🔥</span>
-          </Taste>
+            <motion.button
+              onClick={() => void zusammenschleifen()}
+              aria-label="Laute zusammenziehen"
+              animate={{ scale: [1, 1.06, 1] }}
+              transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }}
+              className="flex h-20 items-center justify-center gap-4 rounded-2xl
+                         border-b-8 border-glut-tief bg-glut px-12 text-nacht
+                         shadow-[0_0_50px_rgba(255,176,32,0.5)]"
+            >
+              <span className="text-4xl" aria-hidden>🔥</span>
+              <span
+                className="font-display text-3xl font-extrabold tracking-tight"
+                aria-hidden
+              >
+                ▭▭▭▭▭▭
+              </span>
+            </motion.button>
+          </>
         )}
 
-        {(phase === 'waehlen' || phase === 'nochmal') && (
-          <div className="flex gap-2">
-            {[1, 2, 3].map((n) => (
-              <Taste key={n} pulsiert label={`Taste ${n}`}>
-                <span className="font-display font-extrabold">{n}</span>
-              </Taste>
-            ))}
-          </div>
+        {(phase === 'waehlen' || phase === 'nochmal') && wort && (
+          <>
+            <button
+              onClick={() => void playWort(wort.text)}
+              aria-label="Wort noch einmal hören"
+              className="flex h-14 w-16 items-center justify-center rounded-xl
+                         border-b-4 border-white/15 bg-white/5 text-2xl
+                         opacity-40 transition hover:opacity-80"
+            >
+              🔊
+            </button>
+            <div className="flex gap-3">
+              {[1, 2, 3].map((n) => (
+                <Taste key={n} pulsiert label={`Taste ${n}`}>
+                  <span className="font-display font-extrabold">{n}</span>
+                </Taste>
+              ))}
+            </div>
+          </>
         )}
       </footer>
     </div>
