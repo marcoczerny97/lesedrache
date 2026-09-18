@@ -39,10 +39,14 @@ export function Drache({ laune }: { laune: Laune }) {
           scale: laune === 'pusten' ? 1.35 : laune === 'warten' ? 1.15 : 1,
         }}
         transition={{ duration: 0.4 }}
-        style={{ width: '13rem', height: '13rem' }}
+        style={{
+          width: 'clamp(9rem, 20vw, 17rem)',
+          height: 'clamp(9rem, 20vw, 17rem)',
+        }}
       />
       <motion.div
-        className="relative select-none text-[9rem] leading-none"
+        className="relative leading-none select-none"
+        style={{ fontSize: 'clamp(6rem, 14vw, 12rem)' }}
         animate={animation}
         transition={{
           duration: dauer,

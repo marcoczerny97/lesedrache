@@ -11,7 +11,7 @@ import {
   naechsterNeuer,
   type Aufgabe,
 } from '../engine/aufgaben'
-import { useFortschritt } from '../store/fortschritt'
+import { istSicher, useFortschritt } from '../store/fortschritt'
 import { playAnsage, playLaut, playWort, stopAll } from '../audio/speak'
 import { sfxNochmal, sfxSchluepfen, sfxTipp } from '../audio/sfx'
 
@@ -140,27 +140,14 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
   )
 
   /* --- Die Tastatur ist das Spiel. --- */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.repeat) return
 
-      if (e.key === 'Escape') {
-        lauf.current++
-        stopAll()
-        onEnde()
-        return
-      }
-
-      if (e.key === ' ') {
-        e.preventDefault()
-        if (aufgabe) void ansagen(aufgabe, vorstellung)
-        return
-      }
-
-      if (!/^[a-zA-ZäöüÄÖÜ]$/.test(e.key)) return
-      const taste = e.key.toUpperCase()
-
-      // Jede gedrückte Taste blitzt auf der Landkarte auf.
+  /**
+   * Eine Taste wurde betätigt - egal ob auf der echten Tastatur oder
+   * durch Klick auf die Landkarte. Beides läuft hier durch, damit es
+   * keinen Weg gibt, auf dem das Spiel nicht reagiert.
+   */
+  const tasteGedrueckt = useCallback(
+    (taste: string) => {
       setGedrueckt(taste)
       if (blitz.current) clearTimeout(blitz.current)
       blitz.current = window.setTimeout(() => setGedrueckt(null), 220)
@@ -181,8 +168,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
 
       if (taste === ziel) {
         treffer(ziel, fehler === 0)
-        const neuGetippt = [...getippt, taste]
-        setGetippt(neuGetippt)
+        setGetippt((g) => [...g, taste])
 
         if (pos + 1 >= aufgabe.ziel.length) {
           void abschluss(aufgabe)
@@ -205,14 +191,34 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
       if (BUCHSTABEN[taste]) void playLaut(taste)
       else sfxTipp()
       if (fehler >= 2) sfxNochmal()
+    },
+    [aufgabe, phase, pos, fehler, treffer, daneben, abschluss],
+  )
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat) return
+
+      if (e.key === 'Escape') {
+        lauf.current++
+        stopAll()
+        onEnde()
+        return
+      }
+
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (aufgabe) void ansagen(aufgabe, vorstellung)
+        return
+      }
+
+      if (!/^[a-zA-ZäöüÄÖÜ]$/.test(e.key)) return
+      tasteGedrueckt(e.key.toUpperCase())
     }
 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [
-    aufgabe, phase, pos, fehler, getippt, vorstellung,
-    treffer, daneben, abschluss, ansagen, onEnde,
-  ])
+  }, [aufgabe, vorstellung, ansagen, onEnde, tasteGedrueckt])
 
   /*
    * Passiert nichts, wird die Aufgabe noch einmal gesagt. Er kann sie
@@ -232,21 +238,18 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
 
   const zielZeichen = aufgabe?.ziel[pos] ?? null
   const zielStand = zielZeichen ? stand[zielZeichen] : undefined
-  const nochNieGesehen = (zielStand?.versuche ?? 0) === 0
 
   /**
-   * Die Hilfe verblasst, während er lernt.
-   * Am Anfang zeigen wir den Buchstaben und die Taste; sobald er ihn
-   * dreimal auf Anhieb hatte, muss er ihn aus dem Laut allein finden.
+   * Die Hilfe bleibt, bis der Buchstabe wirklich sitzt.
+   *
+   * Erst wenn er ihn dreimal auf Anhieb hatte, verschwinden Zeichen,
+   * Zeigefinger und Schattenriss. Vorher ist das Spiel ohne Ton
+   * vollständig lösbar - er darf nie ratlos vor dem Schirm sitzen.
    */
-  const verraten =
-    vorstellung || fehler >= 1 || (aufgabe?.art === 'buchstabe' && nochNieGesehen)
-
+  const sitzt = istSicher(zielStand)
+  const verraten = !sitzt || fehler >= 1
   const zeigeZiel =
-    vorstellung ||
-    (aufgabe?.art === 'buchstabe'
-      ? (zielStand?.serie ?? 0) < 2 || fehler >= 1
-      : fehler >= 2)
+    aufgabe?.art === 'buchstabe' ? !sitzt || fehler >= 1 : fehler >= 1
 
   const laune: Laune =
     phase === 'stellen' ? 'lauten'
@@ -275,7 +278,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center gap-8 px-6">
+      <main className="flex flex-1 items-center justify-center gap-[3vw] px-6">
         <Drache laune={laune} />
 
         {/* Das Ei mit der Aufgabe */}
@@ -283,7 +286,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
           {/* Bei Wörtern ist das Bild die Bedeutung - kein Ratespiel. */}
           {aufgabe?.art === 'wort' && phase !== 'schluepfen' && (
             <motion.div
-              className="text-6xl"
+              style={{ fontSize: 'clamp(3rem, 7vw, 6rem)' }}
               animate={{ y: [0, -6, 0] }}
               transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
               aria-hidden
@@ -292,7 +295,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
             </motion.div>
           )}
 
-          <div className="relative flex h-44 items-center justify-center">
+          <div className="relative flex items-center justify-center">
             <Ei
               fehler={fehler}
               offen={phase === 'schluepfen'}
@@ -332,7 +335,8 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
               {phase === 'schluepfen' && (
                 <motion.div
                   key="wesen"
-                  className="absolute text-8xl"
+                  className="absolute"
+                  style={{ fontSize: 'clamp(4rem, 11vw, 9rem)' }}
                   initial={{ scale: 0.2, y: 14, rotate: -20, opacity: 0 }}
                   animate={{ scale: 1, y: -6, rotate: 0, opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -345,7 +349,7 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
           </div>
 
           {/* Was er tippen muss - ein Kasten je Buchstabe */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-[1vw]">
             {aufgabe?.ziel.map((z, i) => {
               const fertig = i < pos || phase === 'schluepfen'
               const dran = i === pos && phase === 'jagen'
@@ -357,14 +361,19 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
                     duration: 1, repeat: dran ? Infinity : 0, ease: 'easeInOut',
                   }}
                   className={[
-                    'font-display flex h-20 w-16 items-center justify-center',
-                    'rounded-2xl border-4 text-5xl font-extrabold md:h-24 md:w-20 md:text-6xl',
+                    'font-display flex items-center justify-center',
+                    'rounded-2xl border-4 font-extrabold',
                     fertig
                       ? 'border-glut bg-glut/20 text-glut-hell glut'
                       : dran
                         ? 'border-glut/70 text-glut-hell glut'
                         : 'border-white/15 text-white/30',
                   ].join(' ')}
+                  style={{
+                    height: 'clamp(4.5rem, 10vw, 8rem)',
+                    width: 'clamp(3.6rem, 8vw, 6.5rem)',
+                    fontSize: 'clamp(2.6rem, 6vw, 5rem)',
+                  }}
                 >
                   {fertig ? getippt[i] ?? z : dran && zeigeZiel ? z : ''}
                 </motion.div>
@@ -376,12 +385,21 @@ export function Jagd({ onEnde }: { onEnde: () => void }) {
 
       <Welt gefangen={gefangen} />
 
-      <div className="flex justify-center pb-5">
+      <div className="flex flex-col items-center gap-3 pb-5">
+        {/*
+          Für Erwachsene, nicht für ihn. Wer danebensteht, soll sofort
+          sehen, was erwartet wird - und dass es auch ohne Ton geht.
+        */}
+        <p className="text-sm text-white/35">
+          Den leuchtenden Buchstaben drücken — auf der Tastatur oder hier
+          klicken. Leertaste wiederholt.
+        </p>
         <Tastatur
           gedrueckt={gedrueckt}
           ziel={zielZeichen}
           verraten={verraten && phase === 'jagen'}
           bekannt={gefangen}
+          onTaste={tasteGedrueckt}
         />
       </div>
     </div>

@@ -20,21 +20,29 @@ type Props = {
  */
 export function Ei({ fehler, offen, emoji, durchscheinend }: Props) {
   const risse = Math.min(3, fehler)
+  const breite = 'clamp(6rem, 13vw, 11rem)'
+  const hoehe = 'clamp(7.6rem, 16.5vw, 14rem)'
 
   return (
-    <div className="relative flex h-40 w-32 items-center justify-center">
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: breite, height: hoehe }}
+    >
       <motion.div
         animate={
           offen
             ? { scale: [1, 1.25, 0], opacity: [1, 1, 0] }
-            : { rotate: [0, -3.5, 3.5, 0], scale: 1 + risse * 0.02 }
+            : // opacity MUSS hier stehen: nach dem Schluepfen behaelt
+              // Framer Motion sonst die 0 aus der Zeile darueber - das Ei
+              // waere ab der zweiten Runde unsichtbar.
+              { rotate: [0, -3.5, 3.5, 0], scale: 1 + risse * 0.02, opacity: 1 }
         }
         transition={
           offen
             ? { duration: 0.45 }
             : { rotate: { duration: 2.4, repeat: Infinity, ease: 'easeInOut' } }
         }
-        className="relative h-36 w-28"
+        className="relative h-full w-full"
       >
         {/* Die Schale */}
         <div
@@ -46,13 +54,20 @@ export function Ei({ fehler, offen, emoji, durchscheinend }: Props) {
           }}
         />
 
-        {/* Ahnung dessen, was drin steckt */}
+        {/*
+          Ahnung dessen, was drin steckt. Bewusst in Farbe und nur leicht
+          weichgezeichnet - als schwarze Silhouette wird daraus ein
+          grauer Klecks, den kein Kind erkennt.
+        */}
         {durchscheinend && !offen && (
           <motion.div
-            className="absolute inset-0 flex items-center justify-center text-5xl"
-            animate={{ opacity: [0.18, 0.32, 0.18] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-            style={{ filter: 'brightness(0) saturate(0)' }}
+            className="absolute inset-0 flex items-center justify-center"
+            style={{
+              fontSize: `calc(${breite} * 0.52)`,
+              filter: 'blur(1.5px) saturate(0.75)',
+            }}
+            animate={{ opacity: [0.4, 0.62, 0.4] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
             aria-hidden
           >
             {emoji}
@@ -62,6 +77,7 @@ export function Ei({ fehler, offen, emoji, durchscheinend }: Props) {
         {/* Risse, einer je Fehlversuch */}
         <svg
           viewBox="0 0 100 130"
+          preserveAspectRatio="none"
           className="absolute inset-0 h-full w-full"
           aria-hidden
         >
@@ -74,7 +90,7 @@ export function Ei({ fehler, offen, emoji, durchscheinend }: Props) {
               key={d}
               d={d}
               fill="none"
-              stroke="rgba(90,60,25,0.55)"
+              stroke="rgba(90,60,25,0.6)"
               strokeWidth={2.5}
               strokeLinecap="round"
               initial={{ pathLength: 0, opacity: 0 }}
@@ -95,7 +111,7 @@ export function Ei({ fehler, offen, emoji, durchscheinend }: Props) {
           initial={{ scale: 0.2, opacity: 0.9 }}
           animate={{ scale: 2.4, opacity: 0 }}
           transition={{ duration: 0.7 }}
-          style={{ width: '9rem', height: '9rem' }}
+          style={{ width: breite, height: breite }}
           aria-hidden
         />
       )}
